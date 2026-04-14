@@ -23,30 +23,65 @@ public class ClaudeService {
 
     public String analyzeCVSection(String text) {
 
-        String prompt = "You are a CV parser. Convert this into JSON. Return only JSON. Text: " + text;
+            try {
 
-        String body = """
-    {
-      "anthropic_version": "bedrock-2023-05-31",
-      "max_tokens": 1000,
-      "messages": [
-        {
-          "role": "user",
-          "content": "%s"
-        }
-      ]
-    }
-    """.formatted(prompt);
+                String cleanedText = text
+                        .replaceAll("\\r?\\n", " ")
+                        .replaceAll("\\s+", " ")
+                        .trim();
 
-        InvokeModelRequest request = InvokeModelRequest.builder()
-                .modelId("arn:aws:bedrock:us-east-1:937566679262:application-inference-profile/n8wo4v1vs0dr")
-                .contentType("application/json")
-                .accept("application/json")
-                .body(SdkBytes.fromUtf8String(body))
-                .build();
+                String prompt = """
+You are a professional CV writer.
 
-        InvokeModelResponse response = bedrockClient.invokeModel(request);
+Improve and rewrite the following CV to make it:
+- Professional
+- Clear and well-structured
+- ATS-friendly
 
-        return response.body().asUtf8String();
-    }
+Return ONLY valid JSON in this format:
+
+{
+  "name": "",
+  "email": "",
+  "phone": "",
+  "location": "",
+  "summary": "",
+  "skills": [],
+  "education": [],
+  "experience": []
 }
+
+CV:
+""" + cleanedText;
+
+                // ✅ Build request properly using Map
+                Map<String, Object> requestBody = Map.of(
+                        "anthropic_version", "bedrock-2023-05-31",
+                        "max_tokens", 1000,
+                        "messages", List.of(
+                                Map.of(
+                                        "role", "user",
+                                        "content", prompt
+                                )
+                        )
+                );
+
+                String body = objectMapper.writeValueAsString(requestBody);
+
+                InvokeModelRequest request = InvokeModelRequest.builder()
+                        .modelId("arn:aws:bedrock:us-east-1:937566679262:application-inference-profile/n8wo4v1vs0dr")
+                        .contentType("application/json")
+                        .accept("application/json")
+                        .body(SdkBytes.fromUtf8String(body))
+                        .build();
+
+                InvokeModelResponse response = bedrockClient.invokeModel(request);
+
+                return response.body().asUtf8String();
+
+            } catch (Exception e) {
+                throw new RuntimeException("Error calling Bedrock: " + e.getMessage(), e);
+            }
+        }
+    }
+
